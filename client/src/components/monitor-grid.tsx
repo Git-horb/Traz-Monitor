@@ -13,17 +13,20 @@ interface MonitorGridProps {
   onDeleteMonitor: (monitorId: string) => void;
 }
 
-function MonitorCardSkeleton() {
+function MonitorCardSkeleton({ delay = 0 }: { delay?: number }) {
   return (
-    <Card className="relative overflow-visible border-l-4 border-l-muted">
+    <Card 
+      className="relative overflow-visible glass border-border/50 border-l-2 border-l-muted animate-pulse"
+      style={{ animationDelay: `${delay}ms` }}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 space-y-2">
             <div className="flex items-center gap-2">
-              <Skeleton className="h-6 w-32" />
-              <Skeleton className="h-6 w-16 rounded-full" />
+              <Skeleton className="h-6 w-32 bg-muted/50" />
+              <Skeleton className="h-6 w-20 rounded-full bg-muted/50" />
             </div>
-            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-4 w-48 bg-muted/30" />
           </div>
         </div>
       </CardHeader>
@@ -31,20 +34,20 @@ function MonitorCardSkeleton() {
         <div className="grid grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
             <div key={i} className="space-y-1">
-              <Skeleton className="h-4 w-16" />
-              <Skeleton className="h-7 w-20" />
+              <Skeleton className="h-4 w-16 bg-muted/30" />
+              <Skeleton className="h-7 w-20 bg-muted/40" />
             </div>
           ))}
         </div>
         <div className="space-y-2">
-          <Skeleton className="h-3 w-full" />
-          <Skeleton className="h-2 w-full" />
+          <Skeleton className="h-3 w-full bg-muted/30" />
+          <Skeleton className="h-2 w-full bg-muted/20" />
         </div>
         <div className="space-y-2">
-          <Skeleton className="h-3 w-full" />
-          <div className="flex gap-0.5">
+          <Skeleton className="h-3 w-full bg-muted/30" />
+          <div className="flex gap-1">
             {[...Array(24)].map((_, i) => (
-              <Skeleton key={i} className="w-2 h-8" />
+              <Skeleton key={i} className="w-2 h-8 bg-muted/20" />
             ))}
           </div>
         </div>
@@ -64,8 +67,8 @@ export function MonitorGrid({
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3].map((i) => (
-          <MonitorCardSkeleton key={i} />
+        {[0, 1, 2].map((i) => (
+          <MonitorCardSkeleton key={i} delay={i * 100} />
         ))}
       </div>
     );
@@ -77,14 +80,19 @@ export function MonitorGrid({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {monitors.map((monitor) => (
-        <MonitorCard
+      {monitors.map((monitor, index) => (
+        <div 
           key={monitor.id}
-          monitor={monitor}
-          pingResults={pingResults[monitor.id] || []}
-          onEdit={onEditMonitor}
-          onDelete={onDeleteMonitor}
-        />
+          className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+          style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'both' }}
+        >
+          <MonitorCard
+            monitor={monitor}
+            pingResults={pingResults[monitor.id] || []}
+            onEdit={onEditMonitor}
+            onDelete={onDeleteMonitor}
+          />
+        </div>
       ))}
     </div>
   );

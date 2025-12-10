@@ -1,8 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Lock, Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { Loader2, Lock, Eye, EyeOff, Globe, Clock, Shield } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,8 +12,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Form,
   FormControl,
@@ -101,29 +98,33 @@ export function AddMonitorModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[480px]">
-        <DialogHeader>
-          <DialogTitle className="text-xl">
-            {isEditing ? "Edit Monitor" : "Add New Monitor"}
+      <DialogContent className="sm:max-w-[500px] bg-[#0d1117]/95 backdrop-blur-xl border-cyan-500/20 shadow-2xl shadow-cyan-500/10">
+        <DialogHeader className="space-y-3">
+          <DialogTitle className="text-xl font-bold tracking-tight flex items-center gap-3">
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500/20 to-purple-500/20 border border-cyan-500/30">
+              <Globe className="h-5 w-5 text-cyan-400" />
+            </div>
+            {isEditing ? "Edit Monitor" : "New Monitor"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-muted-foreground">
             {isEditing
-              ? "Update the monitoring settings for this website."
-              : "Enter the details for the website you want to monitor."}
+              ? "Update the monitoring configuration for this endpoint."
+              : "Configure a new endpoint to monitor in real-time."}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-5">
             <FormField
               control={form.control}
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Display Name</FormLabel>
+                  <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">Display Name</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="My Website"
+                      className="bg-background/50 border-border/50 focus:border-cyan-500/50 focus:ring-cyan-500/20"
                       {...field}
                       data-testid="input-monitor-name"
                     />
@@ -138,11 +139,12 @@ export function AddMonitorModal({
               name="url"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Website URL</FormLabel>
+                  <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground">Endpoint URL</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="https://example.com"
                       type="url"
+                      className="bg-background/50 border-border/50 focus:border-cyan-500/50 focus:ring-cyan-500/20 font-mono text-sm"
                       {...field}
                       data-testid="input-monitor-url"
                     />
@@ -158,15 +160,16 @@ export function AddMonitorModal({
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-2">
-                      <Lock className="h-4 w-4" />
+                    <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                      <Shield className="h-3.5 w-3.5 text-purple-400" />
                       Deletion Password
                     </FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Input
-                          placeholder="Enter a password to protect deletion"
+                          placeholder="Secure password for deletion"
                           type={showPassword ? "text" : "password"}
+                          className="bg-background/50 border-border/50 focus:border-purple-500/50 focus:ring-purple-500/20 pr-10"
                           {...field}
                           data-testid="input-monitor-password"
                         />
@@ -174,20 +177,20 @@ export function AddMonitorModal({
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="absolute right-0 top-0 h-full px-3"
+                          className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:text-foreground"
                           onClick={() => setShowPassword(!showPassword)}
                           data-testid="button-toggle-password"
                         >
                           {showPassword ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            <EyeOff className="h-4 w-4" />
                           ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
+                            <Eye className="h-4 w-4" />
                           )}
                         </Button>
                       </div>
                     </FormControl>
-                    <FormDescription className="text-xs">
-                      You'll need this password to delete this monitor
+                    <FormDescription className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                      Required to delete this monitor
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -200,45 +203,41 @@ export function AddMonitorModal({
               name="interval"
               render={({ field }) => (
                 <FormItem className="space-y-3">
-                  <FormLabel>Check Interval</FormLabel>
+                  <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <Clock className="h-3.5 w-3.5 text-cyan-400" />
+                    Check Interval
+                  </FormLabel>
                   <FormControl>
-                    <RadioGroup
-                      onValueChange={(value) => field.onChange(parseInt(value))}
-                      value={field.value?.toString()}
-                      className="grid grid-cols-2 sm:grid-cols-3 gap-2"
-                    >
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                       {INTERVAL_OPTIONS.map((option) => (
-                        <Label
+                        <button
                           key={option.value}
-                          htmlFor={`interval-${option.value}`}
+                          type="button"
+                          onClick={() => field.onChange(option.value)}
                           className={cn(
-                            "flex items-center justify-center gap-2 rounded-lg border p-3 cursor-pointer transition-colors hover-elevate",
+                            "flex items-center justify-center rounded-lg border p-3 text-sm font-medium transition-all duration-200",
                             field.value === option.value
-                              ? "border-primary bg-primary/5"
-                              : "border-border"
+                              ? "border-cyan-500 bg-cyan-500/10 text-cyan-400 shadow-lg shadow-cyan-500/10"
+                              : "border-border/50 bg-background/30 text-muted-foreground hover:border-border hover:bg-muted/30"
                           )}
                         >
-                          <RadioGroupItem
-                            value={option.value.toString()}
-                            id={`interval-${option.value}`}
-                            className="sr-only"
-                          />
-                          <span className="text-sm font-medium">{option.label}</span>
-                        </Label>
+                          {option.label.replace("Every ", "")}
+                        </button>
                       ))}
-                    </RadioGroup>
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <DialogFooter className="gap-2 sm:gap-0">
+            <DialogFooter className="gap-2 sm:gap-0 pt-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => handleOpenChange(false)}
                 disabled={isPending}
+                className="border-border/50"
                 data-testid="button-cancel-monitor"
               >
                 Cancel
@@ -246,10 +245,11 @@ export function AddMonitorModal({
               <Button 
                 type="submit" 
                 disabled={isPending}
+                className="bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-black font-bold"
                 data-testid="button-submit-monitor"
               >
                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isEditing ? "Save Changes" : "Start Monitoring"}
+                {isEditing ? "Save Changes" : "Activate Monitor"}
               </Button>
             </DialogFooter>
           </form>

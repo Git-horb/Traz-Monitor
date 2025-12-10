@@ -1,6 +1,7 @@
-import { Activity, CheckCircle, XCircle, Clock, TrendingUp } from "lucide-react";
+import { Activity, CheckCircle, XCircle, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Monitor } from "@shared/schema";
+import { cn } from "@/lib/utils";
 
 interface StatsOverviewProps {
   monitors: Monitor[];
@@ -20,65 +21,86 @@ export function StatsOverview({ monitors }: StatsOverviewProps) {
       )
     : 0;
 
-  const overallUptime = monitors.length > 0
-    ? Math.round(
-        monitors.reduce((acc, m) => acc + (m.uptimePercentage || 0), 0) / monitors.length
-      )
-    : 100;
-
   const stats = [
     {
       label: "Total Monitors",
       value: totalMonitors,
       icon: Activity,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
-      gradient: "from-primary/20 via-transparent to-transparent",
+      glowClass: "glow-cyan",
+      textGlow: "text-glow-cyan",
+      iconBg: "bg-cyan-500/20",
+      iconColor: "text-cyan-400",
+      borderColor: "border-cyan-500/30",
+      valueColor: "text-cyan-400",
     },
     {
       label: "Online",
       value: upMonitors,
       icon: CheckCircle,
-      color: "text-emerald-600 dark:text-emerald-400",
-      bgColor: "bg-emerald-500/10",
-      gradient: "from-emerald-500/20 via-transparent to-transparent",
+      glowClass: "glow-green",
+      textGlow: "text-glow-green",
+      iconBg: "bg-emerald-500/20",
+      iconColor: "text-emerald-400",
+      borderColor: "border-emerald-500/30",
+      valueColor: "text-emerald-400",
     },
     {
       label: "Offline",
       value: downMonitors,
       icon: XCircle,
-      color: "text-red-600 dark:text-red-400",
-      bgColor: "bg-red-500/10",
-      gradient: "from-red-500/20 via-transparent to-transparent",
+      glowClass: downMonitors > 0 ? "glow-red" : "",
+      textGlow: downMonitors > 0 ? "text-glow-red" : "",
+      iconBg: "bg-red-500/20",
+      iconColor: "text-red-400",
+      borderColor: downMonitors > 0 ? "border-red-500/50" : "border-red-500/20",
+      valueColor: downMonitors > 0 ? "text-red-400" : "text-red-400/60",
     },
     {
       label: "Avg Response",
       value: `${avgResponseTime}ms`,
       icon: Clock,
-      color: "text-amber-600 dark:text-amber-400",
-      bgColor: "bg-amber-500/10",
-      gradient: "from-amber-500/20 via-transparent to-transparent",
+      glowClass: "glow-amber",
+      textGlow: "",
+      iconBg: "bg-amber-500/20",
+      iconColor: "text-amber-400",
+      borderColor: "border-amber-500/30",
+      valueColor: "text-amber-400",
     },
   ];
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {stats.map((stat) => (
-        <Card key={stat.label} className="relative overflow-visible group">
-          <div className={`absolute inset-0 rounded-lg bg-gradient-to-br ${stat.gradient} opacity-50 group-hover:opacity-100 transition-opacity pointer-events-none`} />
+      {stats.map((stat, index) => (
+        <Card 
+          key={stat.label} 
+          className={cn(
+            "relative overflow-visible glass border transition-all duration-300 group",
+            stat.borderColor,
+            stat.glowClass && "hover:scale-[1.02]"
+          )}
+          style={{ animationDelay: `${index * 100}ms` }}
+        >
           <CardContent className="p-4 md:p-6 relative">
             <div className="flex items-center gap-3">
-              <div className={`flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-lg ${stat.bgColor} transition-transform group-hover:scale-105`}>
-                <stat.icon className={`h-5 w-5 md:h-6 md:w-6 ${stat.color}`} />
+              <div className={cn(
+                "flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-xl transition-all duration-300",
+                stat.iconBg,
+                "group-hover:scale-110"
+              )}>
+                <stat.icon className={cn("h-6 w-6 md:h-7 md:w-7", stat.iconColor)} />
               </div>
               <div className="flex flex-col min-w-0">
                 <span 
-                  className="text-2xl md:text-3xl font-bold tabular-nums tracking-tight truncate"
+                  className={cn(
+                    "text-3xl md:text-4xl font-bold tabular-nums tracking-tight truncate",
+                    stat.valueColor,
+                    stat.textGlow
+                  )}
                   data-testid={`stat-value-${stat.label.toLowerCase().replace(/\s/g, '-')}`}
                 >
                   {stat.value}
                 </span>
-                <span className="text-xs uppercase tracking-wide text-muted-foreground truncate">
+                <span className="text-[10px] md:text-xs uppercase tracking-widest text-muted-foreground truncate">
                   {stat.label}
                 </span>
               </div>

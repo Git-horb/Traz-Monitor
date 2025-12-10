@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, AlertTriangle, Lock, Eye, EyeOff } from "lucide-react";
+import { Loader2, AlertTriangle, Lock, Eye, EyeOff, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -48,23 +48,27 @@ export function DeleteConfirmDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent className="bg-[#0d1117]/95 backdrop-blur-xl border-red-500/30 shadow-2xl shadow-red-500/10">
         <AlertDialogHeader>
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-destructive/10">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
+            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/30">
+              <AlertTriangle className="h-6 w-6 text-red-400" />
             </div>
-            <AlertDialogTitle>Delete Monitor</AlertDialogTitle>
+            <div>
+              <AlertDialogTitle className="text-lg font-bold">Terminate Monitor</AlertDialogTitle>
+              <p className="text-xs uppercase tracking-wider text-red-400/70 mt-0.5">Irreversible Action</p>
+            </div>
           </div>
-          <AlertDialogDescription className="pt-2">
-            Are you sure you want to delete <strong>{monitorName}</strong>? This action cannot be undone and all monitoring history will be lost.
+          <AlertDialogDescription className="pt-4 text-muted-foreground">
+            You are about to permanently delete <span className="text-foreground font-semibold">{monitorName}</span>. 
+            All monitoring data and history will be lost.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className="space-y-2 py-4">
-          <Label htmlFor="delete-password" className="flex items-center gap-2 text-sm font-medium">
-            <Lock className="h-4 w-4" />
-            Enter deletion password
+        <div className="space-y-3 py-4">
+          <Label htmlFor="delete-password" className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+            <Lock className="h-3.5 w-3.5 text-red-400" />
+            Deletion Password
           </Label>
           <div className="relative">
             <Input
@@ -78,40 +82,53 @@ export function DeleteConfirmDialog({
                   handleConfirm();
                 }
               }}
+              className="bg-background/50 border-border/50 focus:border-red-500/50 focus:ring-red-500/20 pr-10"
               data-testid="input-delete-password"
             />
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="absolute right-0 top-0 h-full px-3"
+              className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:text-foreground"
               onClick={() => setShowPassword(!showPassword)}
               data-testid="button-toggle-delete-password"
             >
               {showPassword ? (
-                <EyeOff className="h-4 w-4 text-muted-foreground" />
+                <EyeOff className="h-4 w-4" />
               ) : (
-                <Eye className="h-4 w-4 text-muted-foreground" />
+                <Eye className="h-4 w-4" />
               )}
             </Button>
           </div>
           {error && (
-            <p className="text-sm text-destructive" data-testid="text-delete-error">{error}</p>
+            <p className="text-sm text-red-400 flex items-center gap-2" data-testid="text-delete-error">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {error}
+            </p>
           )}
         </div>
 
         <AlertDialogFooter className="gap-2 sm:gap-0">
-          <AlertDialogCancel disabled={isPending} data-testid="button-cancel-delete">
+          <AlertDialogCancel 
+            disabled={isPending} 
+            className="border-border/50"
+            data-testid="button-cancel-delete"
+          >
             Cancel
           </AlertDialogCancel>
           <Button
             variant="destructive"
             onClick={handleConfirm}
             disabled={isPending || !password.trim()}
+            className="bg-red-600 hover:bg-red-500 gap-2"
             data-testid="button-confirm-delete"
           >
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Delete Monitor
+            {isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+            Confirm Deletion
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
