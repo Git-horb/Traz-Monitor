@@ -102,7 +102,9 @@ export class MemStorage implements IStorage {
   async getAllPingResults(): Promise<Record<string, PingResult[]>> {
     const results: Record<string, PingResult[]> = {};
     
-    for (const [monitorId, pingResults] of this.pingResultsByMonitor.entries()) {
+    const entries = Array.from(this.pingResultsByMonitor.entries());
+    for (let i = 0; i < entries.length; i++) {
+      const [monitorId, pingResults] = entries[i];
       results[monitorId] = pingResults.slice(-24);
     }
 
