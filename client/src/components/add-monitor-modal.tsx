@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Lock, Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -21,14 +22,15 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
-import { insertMonitorSchema, INTERVAL_OPTIONS, type InsertMonitor, type Monitor } from "@shared/schema";
+import { createMonitorSchema, updateMonitorSchema, INTERVAL_OPTIONS, type CreateMonitor, type UpdateMonitor, type Monitor } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
 interface AddMonitorModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: InsertMonitor) => void;
+  onSubmit: (data: CreateMonitor | UpdateMonitor) => void;
   isPending: boolean;
   editingMonitor?: Monitor | null;
 }
@@ -40,12 +42,17 @@ export function AddMonitorModal({
   isPending,
   editingMonitor,
 }: AddMonitorModalProps) {
-  const form = useForm<InsertMonitor>({
-    resolver: zodResolver(insertMonitorSchema),
+  const [showPassword, setShowPassword] = useState(false);
+  
+  const isEditing = !!editingMonitor;
+  
+  const form = useForm<CreateMonitor>({
+    resolver: zodResolver(isEditing ? updateMonitorSchema : createMonitorSchema),
     defaultValues: {
       name: "",
       url: "",
       interval: 5,
+      password: "",
     },
   });
 
@@ -56,19 +63,27 @@ export function AddMonitorModal({
           name: editingMonitor.name,
           url: editingMonitor.url,
           interval: editingMonitor.interval,
+          password: "",
         });
       } else {
         form.reset({
           name: "",
           url: "",
           interval: 5,
+          password: "",
         });
       }
+      setShowPassword(false);
     }
   }, [open, editingMonitor, form]);
 
-  const handleSubmit = (data: InsertMonitor) => {
-    onSubmit(data);
+  const handleSubmit = (data: CreateMonitor) => {
+    if (isEditing) {
+      const { password, ...updateData } = data;
+      onSubmit(updateData);
+    } else {
+      onSubmit(data);
+    }
   };
 
   const handleOpenChange = (newOpen: boolean) => {
@@ -77,7 +92,9 @@ export function AddMonitorModal({
         name: "",
         url: "",
         interval: 5,
+        password: "",
       });
+      setShowPassword(false);
     }
     onOpenChange(newOpen);
   };
@@ -87,10 +104,10 @@ export function AddMonitorModal({
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle className="text-xl">
-            {editingMonitor ? "Edit Monitor" : "Add New Monitor"}
+            {isEditing ? "Edit Monitor" : "Add New Monitor"}
           </DialogTitle>
           <DialogDescription>
-            {editingMonitor
+            {isEditing
               ? "Update the monitoring settings for this website."
               : "Enter the details for the website you want to monitor."}
           </DialogDescription>
@@ -135,6 +152,49 @@ export function AddMonitorModal({
               )}
             />
 
+            {!isEditing && (
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Lock className="h-4 w-4" />
+                      Deletion Password
+                    </FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input
+                          placeholder="Enter a password to protect deletion"
+                          type={showPassword ? "text" : "password"}
+                          {...field}
+                          data-testid="input-monitor-password"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full px-3"
+                          onClick={() => setShowPassword(!showPassword)}
+                          data-testid="button-toggle-password"
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </div>
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      You'll need this password to delete this monitor
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
             <FormField
               control={form.control}
               name="interval"
@@ -144,7 +204,7 @@ export function AddMonitorModal({
                   <FormControl>
                     <RadioGroup
                       onValueChange={(value) => field.onChange(parseInt(value))}
-                      value={field.value.toString()}
+                      value={field.value?.toString()}
                       className="grid grid-cols-2 sm:grid-cols-3 gap-2"
                     >
                       {INTERVAL_OPTIONS.map((option) => (
@@ -189,7 +249,7 @@ export function AddMonitorModal({
                 data-testid="button-submit-monitor"
               >
                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {editingMonitor ? "Save Changes" : "Start Monitoring"}
+                {isEditing ? "Save Changes" : "Start Monitoring"}
               </Button>
             </DialogFooter>
           </form>

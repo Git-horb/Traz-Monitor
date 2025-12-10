@@ -1,4 +1,4 @@
-import { ExternalLink, Clock, TrendingUp, Settings, Trash2 } from "lucide-react";
+import { ExternalLink, Clock, TrendingUp, Settings, Trash2, Wifi, WifiOff, Radio } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -23,14 +23,25 @@ export function MonitorCard({ monitor, pingResults, onEdit, onDelete }: MonitorC
     return "text-red-600 dark:text-red-400";
   };
 
-  const getStatusBorderColor = () => {
+  const getStatusGradient = () => {
     switch (monitor.status) {
       case "up":
-        return "border-l-emerald-500";
+        return "from-emerald-500/20 via-transparent to-transparent";
       case "down":
-        return "border-l-red-500";
+        return "from-red-500/20 via-transparent to-transparent";
       default:
-        return "border-l-amber-500";
+        return "from-amber-500/20 via-transparent to-transparent";
+    }
+  };
+
+  const getStatusIcon = () => {
+    switch (monitor.status) {
+      case "up":
+        return <Wifi className="h-4 w-4 text-emerald-500" />;
+      case "down":
+        return <WifiOff className="h-4 w-4 text-red-500" />;
+      default:
+        return <Radio className="h-4 w-4 text-amber-500 animate-pulse" />;
     }
   };
 
@@ -52,22 +63,27 @@ export function MonitorCard({ monitor, pingResults, onEdit, onDelete }: MonitorC
 
   return (
     <Card 
-      className={cn(
-        "relative overflow-visible border-l-4 transition-all duration-300",
-        getStatusBorderColor()
-      )}
+      className="relative overflow-visible transition-all duration-300 group"
       data-testid={`card-monitor-${monitor.id}`}
     >
-      <CardHeader className="pb-3">
+      <div className={cn(
+        "absolute inset-0 rounded-lg bg-gradient-to-br opacity-50 transition-opacity group-hover:opacity-100 pointer-events-none",
+        getStatusGradient()
+      )} />
+      
+      <CardHeader className="pb-3 relative">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 
-                className="text-lg font-semibold truncate"
-                data-testid={`text-monitor-name-${monitor.id}`}
-              >
-                {monitor.name}
-              </h3>
+              <div className="flex items-center gap-2">
+                {getStatusIcon()}
+                <h3 
+                  className="text-lg font-semibold truncate"
+                  data-testid={`text-monitor-name-${monitor.id}`}
+                >
+                  {monitor.name}
+                </h3>
+              </div>
               <StatusBadge status={monitor.status} />
             </div>
             <a
@@ -81,7 +97,7 @@ export function MonitorCard({ monitor, pingResults, onEdit, onDelete }: MonitorC
               <ExternalLink className="h-3 w-3 flex-shrink-0" />
             </a>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
             <Button
               variant="ghost"
               size="icon"
@@ -105,7 +121,7 @@ export function MonitorCard({ monitor, pingResults, onEdit, onDelete }: MonitorC
         </div>
       </CardHeader>
       
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 relative">
         <div className="grid grid-cols-3 gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-1 text-muted-foreground">
@@ -116,7 +132,7 @@ export function MonitorCard({ monitor, pingResults, onEdit, onDelete }: MonitorC
               className={cn("text-xl font-bold tabular-nums", getResponseTimeColor(monitor.responseTime))}
               data-testid={`text-response-time-${monitor.id}`}
             >
-              {monitor.responseTime ? `${monitor.responseTime}ms` : "—"}
+              {monitor.responseTime ? `${monitor.responseTime}ms` : "---"}
             </p>
           </div>
           

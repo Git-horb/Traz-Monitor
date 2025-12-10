@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { insertMonitorSchema } from "@shared/schema";
-import { startPingService, checkMonitor } from "./ping-service";
+import { storage, verifyPassword } from "./storage";
+import { createMonitorSchema, updateMonitorSchema, deleteMonitorSchema } from "@shared/schema";
+import { startPingService, checkMonitor, testUrl } from "./ping-service";
 import { fromZodError } from "zod-validation-error";
 
 export async function registerRoutes(
@@ -14,7 +14,8 @@ export async function registerRoutes(
   app.get("/api/monitors", async (req, res) => {
     try {
       const monitors = await storage.getAllMonitors();
-      res.json(monitors);
+      const sanitizedMonitors = monitors.map(({ passwordHash, ...rest }) => rest);
+      res.json(sanitizedMonitors);
     } catch (error) {
       console.error("Error fetching monitors:", error);
       res.status(500).json({ error: "Failed to fetch monitors" });
@@ -27,7 +28,8 @@ export async function registerRoutes(
       if (!monitor) {
         return res.status(404).json({ error: "Monitor not found" });
       }
-      res.json(monitor);
+      const { passwordHash, ...sanitizedMonitor } = monitor;
+      res.json(sanitizedMonitor);
     } catch (error) {
       console.error("Error fetching monitor:", error);
       res.status(500).json({ error: "Failed to fetch monitor" });
@@ -36,10 +38,15 @@ export async function registerRoutes(
 
   app.post("/api/monitors", async (req, res) => {
     try {
-      const result = insertMonitorSchema.safeParse(req.body);
+      const result = createMonitorSchema.safeParse(req.body);
       if (!result.success) {
         const validationError = fromZodError(result.error);
         return res.status(400).json({ error: validationError.message });
+      }
+
+      const isDuplicate = await storage.checkDuplicateUrl(result.data.url);
+      if (isDuplicate) {
+        return res.status(400).json({ error: "This URL is already being monitored" });
       }
 
       const monitor = await storage.createMonitor(result.data);
@@ -48,7 +55,8 @@ export async function registerRoutes(
         console.error("Error during initial monitor check:", err);
       });
 
-      res.status(201).json(monitor);
+      const { passwordHash, ...sanitizedMonitor } = monitor;
+      res.status(201).json(sanitizedMonitor);
     } catch (error) {
       console.error("Error creating monitor:", error);
       res.status(500).json({ error: "Failed to create monitor" });
@@ -62,10 +70,17 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Monitor not found" });
       }
 
-      const result = insertMonitorSchema.partial().safeParse(req.body);
+      const result = updateMonitorSchema.safeParse(req.body);
       if (!result.success) {
         const validationError = fromZodError(result.error);
         return res.status(400).json({ error: validationError.message });
+      }
+
+      if (result.data.url && result.data.url !== existing.url) {
+        const isDuplicate = await storage.checkDuplicateUrl(result.data.url, req.params.id);
+        if (isDuplicate) {
+          return res.status(400).json({ error: "This URL is already being monitored" });
+        }
       }
 
       const updated = await storage.updateMonitor(req.params.id, result.data);
@@ -76,7 +91,12 @@ export async function registerRoutes(
         });
       }
 
-      res.json(updated);
+      if (updated) {
+        const { passwordHash, ...sanitizedMonitor } = updated;
+        res.json(sanitizedMonitor);
+      } else {
+        res.json(updated);
+      }
     } catch (error) {
       console.error("Error updating monitor:", error);
       res.status(500).json({ error: "Failed to update monitor" });
@@ -88,6 +108,17 @@ export async function registerRoutes(
       const existing = await storage.getMonitor(req.params.id);
       if (!existing) {
         return res.status(404).json({ error: "Monitor not found" });
+      }
+
+      const result = deleteMonitorSchema.safeParse(req.body);
+      if (!result.success) {
+        const validationError = fromZodError(result.error);
+        return res.status(400).json({ error: validationError.message });
+      }
+
+      const isValid = await verifyPassword(result.data.password, existing.passwordHash);
+      if (!isValid) {
+        return res.status(401).json({ error: "Incorrect password" });
       }
 
       await storage.deletePingResultsByMonitorId(req.params.id);
@@ -117,6 +148,28 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching ping results:", error);
       res.status(500).json({ error: "Failed to fetch ping results" });
+    }
+  });
+
+  app.post("/api/test-site", async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url || typeof url !== "string") {
+        return res.status(400).json({ error: "URL is required" });
+      }
+
+      try {
+        new URL(url);
+      } catch {
+        return res.status(400).json({ error: "Invalid URL format" });
+      }
+
+      const result = await testUrl(url);
+      res.json(result);
+    } catch (error) {
+      console.error("Error testing site:", error);
+      res.status(500).json({ error: "Failed to test site" });
     }
   });
 

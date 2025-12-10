@@ -1,11 +1,22 @@
-import { type Monitor, type InsertMonitor, type PingResult, type InsertPingResult } from "@shared/schema";
+import { type Monitor, type InsertMonitor, type PingResult, type InsertPingResult, monitors, pingResults } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import bcrypt from "bcryptjs";
+
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 10);
+}
+
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
+}
 
 export interface IStorage {
   getAllMonitors(): Promise<Monitor[]>;
   getMonitor(id: string): Promise<Monitor | undefined>;
-  createMonitor(monitor: InsertMonitor): Promise<Monitor>;
-  updateMonitor(id: string, monitor: Partial<InsertMonitor>): Promise<Monitor | undefined>;
+  createMonitor(monitor: InsertMonitor & { password: string }): Promise<Monitor>;
+  updateMonitor(id: string, monitor: Partial<Omit<InsertMonitor, 'password'>>): Promise<Monitor | undefined>;
   deleteMonitor(id: string): Promise<boolean>;
   updateMonitorStatus(id: string, status: string, responseTime: number | null, lastChecked: string): Promise<void>;
   
@@ -13,28 +24,25 @@ export interface IStorage {
   getAllPingResults(): Promise<Record<string, PingResult[]>>;
   createPingResult(result: InsertPingResult): Promise<PingResult>;
   deletePingResultsByMonitorId(monitorId: string): Promise<void>;
+  
+  checkDuplicateUrl(url: string, excludeId?: string): Promise<boolean>;
 }
 
-export class MemStorage implements IStorage {
-  private monitors: Map<string, Monitor>;
-  private pingResultsByMonitor: Map<string, PingResult[]>;
-
-  constructor() {
-    this.monitors = new Map();
-    this.pingResultsByMonitor = new Map();
-  }
-
+export class DatabaseStorage implements IStorage {
   async getAllMonitors(): Promise<Monitor[]> {
-    return Array.from(this.monitors.values());
+    return await db.select().from(monitors);
   }
 
   async getMonitor(id: string): Promise<Monitor | undefined> {
-    return this.monitors.get(id);
+    const [monitor] = await db.select().from(monitors).where(eq(monitors.id, id));
+    return monitor || undefined;
   }
 
-  async createMonitor(insertMonitor: InsertMonitor): Promise<Monitor> {
+  async createMonitor(insertMonitor: InsertMonitor & { password: string }): Promise<Monitor> {
     const id = randomUUID();
-    const monitor: Monitor = {
+    const passwordHash = await hashPassword(insertMonitor.password);
+    
+    const [monitor] = await db.insert(monitors).values({
       id,
       name: insertMonitor.name,
       url: insertMonitor.url,
@@ -45,27 +53,33 @@ export class MemStorage implements IStorage {
       uptimePercentage: 100,
       totalChecks: 0,
       successfulChecks: 0,
-    };
-    this.monitors.set(id, monitor);
-    this.pingResultsByMonitor.set(id, []);
+      passwordHash,
+    }).returning();
+    
     return monitor;
   }
 
-  async updateMonitor(id: string, updates: Partial<InsertMonitor>): Promise<Monitor | undefined> {
-    const existing = this.monitors.get(id);
+  async updateMonitor(id: string, updates: Partial<Omit<InsertMonitor, 'password'>>): Promise<Monitor | undefined> {
+    const existing = await this.getMonitor(id);
     if (!existing) return undefined;
 
-    const updated: Monitor = {
-      ...existing,
-      ...updates,
-    };
-    this.monitors.set(id, updated);
+    const updateData: Partial<Monitor> = {};
+    if (updates.name !== undefined) updateData.name = updates.name;
+    if (updates.url !== undefined) updateData.url = updates.url;
+    if (updates.interval !== undefined) updateData.interval = updates.interval;
+
+    const [updated] = await db.update(monitors)
+      .set(updateData)
+      .where(eq(monitors.id, id))
+      .returning();
+    
     return updated;
   }
 
   async deleteMonitor(id: string): Promise<boolean> {
-    this.pingResultsByMonitor.delete(id);
-    return this.monitors.delete(id);
+    await this.deletePingResultsByMonitorId(id);
+    const result = await db.delete(monitors).where(eq(monitors.id, id)).returning();
+    return result.length > 0;
   }
 
   async updateMonitorStatus(
@@ -74,7 +88,7 @@ export class MemStorage implements IStorage {
     responseTime: number | null,
     lastChecked: string
   ): Promise<void> {
-    const monitor = this.monitors.get(id);
+    const monitor = await this.getMonitor(id);
     if (!monitor) return;
 
     const totalChecks = (monitor.totalChecks || 0) + 1;
@@ -83,59 +97,71 @@ export class MemStorage implements IStorage {
       : (monitor.successfulChecks || 0);
     const uptimePercentage = Math.round((successfulChecks / totalChecks) * 100);
 
-    this.monitors.set(id, {
-      ...monitor,
+    await db.update(monitors).set({
       status,
       responseTime,
       lastChecked,
       totalChecks,
       successfulChecks,
       uptimePercentage,
-    });
+    }).where(eq(monitors.id, id));
   }
 
   async getPingResultsByMonitorId(monitorId: string): Promise<PingResult[]> {
-    const results = this.pingResultsByMonitor.get(monitorId) || [];
-    return results.slice(-24);
+    const results = await db.select()
+      .from(pingResults)
+      .where(eq(pingResults.monitorId, monitorId))
+      .orderBy(desc(pingResults.timestamp))
+      .limit(24);
+    return results.reverse();
   }
 
   async getAllPingResults(): Promise<Record<string, PingResult[]>> {
-    const results: Record<string, PingResult[]> = {};
+    const allResults = await db.select().from(pingResults).orderBy(desc(pingResults.timestamp));
     
-    const entries = Array.from(this.pingResultsByMonitor.entries());
-    for (let i = 0; i < entries.length; i++) {
-      const [monitorId, pingResults] = entries[i];
-      results[monitorId] = pingResults.slice(-24);
+    const resultsByMonitor: Record<string, PingResult[]> = {};
+    
+    for (const result of allResults) {
+      if (!resultsByMonitor[result.monitorId]) {
+        resultsByMonitor[result.monitorId] = [];
+      }
+      if (resultsByMonitor[result.monitorId].length < 24) {
+        resultsByMonitor[result.monitorId].push(result);
+      }
     }
-
-    return results;
+    
+    for (const monitorId in resultsByMonitor) {
+      resultsByMonitor[monitorId].reverse();
+    }
+    
+    return resultsByMonitor;
   }
 
   async createPingResult(insertResult: InsertPingResult): Promise<PingResult> {
     const id = randomUUID();
-    const result: PingResult = {
+    
+    const [result] = await db.insert(pingResults).values({
       id,
       monitorId: insertResult.monitorId,
       status: insertResult.status,
       responseTime: insertResult.responseTime ?? null,
       timestamp: insertResult.timestamp,
-    };
-
-    const monitorResults = this.pingResultsByMonitor.get(insertResult.monitorId) || [];
-    monitorResults.push(result);
-    
-    if (monitorResults.length > 100) {
-      monitorResults.splice(0, monitorResults.length - 100);
-    }
-    
-    this.pingResultsByMonitor.set(insertResult.monitorId, monitorResults);
+    }).returning();
 
     return result;
   }
 
   async deletePingResultsByMonitorId(monitorId: string): Promise<void> {
-    this.pingResultsByMonitor.delete(monitorId);
+    await db.delete(pingResults).where(eq(pingResults.monitorId, monitorId));
+  }
+
+  async checkDuplicateUrl(url: string, excludeId?: string): Promise<boolean> {
+    const existing = await db.select().from(monitors).where(eq(monitors.url, url));
+    if (excludeId) {
+      return existing.some(m => m.id !== excludeId);
+    }
+    return existing.length > 0;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

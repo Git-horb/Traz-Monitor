@@ -13,6 +13,7 @@ export const monitors = pgTable("monitors", {
   uptimePercentage: integer("uptime_percentage").default(100),
   totalChecks: integer("total_checks").default(0),
   successfulChecks: integer("successful_checks").default(0),
+  passwordHash: text("password_hash").notNull(),
 });
 
 export const pingResults = pgTable("ping_results", {
@@ -33,6 +34,16 @@ export const insertMonitorSchema = createInsertSchema(monitors).pick({
   interval: z.number().min(1).max(60),
 });
 
+export const createMonitorSchema = insertMonitorSchema.extend({
+  password: z.string().min(4, "Password must be at least 4 characters"),
+});
+
+export const updateMonitorSchema = insertMonitorSchema.partial();
+
+export const deleteMonitorSchema = z.object({
+  password: z.string().min(1, "Password is required"),
+});
+
 export const insertPingResultSchema = createInsertSchema(pingResults).pick({
   monitorId: true,
   status: true,
@@ -41,6 +52,8 @@ export const insertPingResultSchema = createInsertSchema(pingResults).pick({
 });
 
 export type InsertMonitor = z.infer<typeof insertMonitorSchema>;
+export type CreateMonitor = z.infer<typeof createMonitorSchema>;
+export type UpdateMonitor = z.infer<typeof updateMonitorSchema>;
 export type Monitor = typeof monitors.$inferSelect;
 export type InsertPingResult = z.infer<typeof insertPingResultSchema>;
 export type PingResult = typeof pingResults.$inferSelect;
