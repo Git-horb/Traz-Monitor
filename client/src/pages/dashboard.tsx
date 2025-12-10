@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Monitor, PingResult, CreateMonitor, UpdateMonitor } from "@shared/schema";
+import type { Monitor, PingResult, CreateMonitor } from "@shared/schema";
 
 function AnimatedBackground() {
   return (
@@ -271,7 +271,7 @@ export default function Dashboard() {
   });
 
   const updateMonitorMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: UpdateMonitor }) => {
+    mutationFn: async ({ id, data }: { id: string; data: CreateMonitor }) => {
       const response = await apiRequest("PATCH", `/api/monitors/${id}`, data);
       if (!response.ok) {
         const errorData = await response.json();
@@ -343,11 +343,11 @@ export default function Dashboard() {
     }
   };
 
-  const handleSubmitMonitor = (data: CreateMonitor | UpdateMonitor) => {
+  const handleSubmitMonitor = (data: CreateMonitor) => {
     if (editingMonitor) {
-      updateMonitorMutation.mutate({ id: editingMonitor.id, data: data as UpdateMonitor });
+      updateMonitorMutation.mutate({ id: editingMonitor.id, data });
     } else {
-      createMonitorMutation.mutate(data as CreateMonitor);
+      createMonitorMutation.mutate(data);
     }
   };
 

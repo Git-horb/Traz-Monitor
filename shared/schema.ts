@@ -38,10 +38,17 @@ export const createMonitorSchema = insertMonitorSchema.extend({
   password: z.string().min(4, "Password must be at least 4 characters"),
 });
 
-export const updateMonitorSchema = insertMonitorSchema.partial();
+export const updateMonitorSchema = insertMonitorSchema.partial().extend({
+  password: z.string().min(1, "Password is required"),
+});
 
 export const deleteMonitorSchema = z.object({
   password: z.string().min(1, "Password is required"),
+});
+
+export const updateMonitorWithPasswordSchema = z.object({
+  password: z.string().min(1, "Password is required"),
+  updates: insertMonitorSchema.partial(),
 });
 
 export const insertPingResultSchema = createInsertSchema(pingResults).pick({

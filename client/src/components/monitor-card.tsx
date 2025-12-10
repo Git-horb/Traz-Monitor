@@ -1,10 +1,11 @@
-import { ExternalLink, Clock, TrendingUp, Settings, Trash2, Wifi, WifiOff, Radio } from "lucide-react";
+import { useState } from "react";
+import { ExternalLink, Clock, TrendingUp, Settings, Trash2, Wifi, WifiOff, Radio, ChevronDown, ChevronUp, BarChart3, History, Gauge, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusHistory } from "@/components/status-history";
 import { cn } from "@/lib/utils";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import type { Monitor, PingResult } from "@shared/schema";
 import { INTERVAL_OPTIONS } from "@shared/schema";
 
@@ -16,6 +17,8 @@ interface MonitorCardProps {
 }
 
 export function MonitorCard({ monitor, pingResults, onEdit, onDelete }: MonitorCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
   const getResponseTimeColor = (time: number | null | undefined) => {
     if (!time) return "text-muted-foreground";
     if (time < 200) return "text-emerald-400 text-glow-green";
@@ -71,6 +74,33 @@ export function MonitorCard({ monitor, pingResults, onEdit, onDelete }: MonitorC
   };
 
   const intervalLabel = INTERVAL_OPTIONS.find(opt => opt.value === monitor.interval)?.label || `Every ${monitor.interval} min`;
+
+  const chartData = pingResults.slice(-30).map((result) => ({
+    time: new Date(result.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    responseTime: result.responseTime ?? 0,
+    status: result.status,
+  }));
+
+  const getMetrics = () => {
+    if (pingResults.length === 0) {
+      return { avg: 0, min: 0, max: 0, fastest: null, slowest: null };
+    }
+    const validResults = pingResults.filter(r => r.responseTime !== null);
+    if (validResults.length === 0) {
+      return { avg: 0, min: 0, max: 0, fastest: null, slowest: null };
+    }
+    const times = validResults.map(r => r.responseTime!);
+    const avg = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
+    const min = Math.min(...times);
+    const max = Math.max(...times);
+    const fastest = validResults.find(r => r.responseTime === min);
+    const slowest = validResults.find(r => r.responseTime === max);
+    return { avg, min, max, fastest, slowest };
+  };
+
+  const metrics = getMetrics();
+
+  const recentHistory = pingResults.slice(-10).reverse();
 
   return (
     <Card 
@@ -203,6 +233,163 @@ export function MonitorCard({ monitor, pingResults, onEdit, onDelete }: MonitorC
           </div>
           <StatusHistory pingResults={pingResults} />
         </div>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="w-full text-xs text-muted-foreground gap-2"
+          data-testid={`button-expand-monitor-${monitor.id}`}
+        >
+          {isExpanded ? (
+            <>
+              <ChevronUp className="h-3 w-3" />
+              Hide Details
+            </>
+          ) : (
+            <>
+              <ChevronDown className="h-3 w-3" />
+              Show Details
+            </>
+          )}
+        </Button>
+
+        {isExpanded && (
+          <div className="space-y-4 pt-2 border-t border-border/30">
+            {chartData.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <BarChart3 className="h-3 w-3 text-cyan-400" />
+                  <span>Response Time Graph</span>
+                </div>
+                <div className="h-32 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
+                      <defs>
+                        <linearGradient id={`gradient-${monitor.id}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis 
+                        dataKey="time" 
+                        tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                        tickLine={false}
+                        axisLine={false}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis 
+                        tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                        tickLine={false}
+                        axisLine={false}
+                        width={35}
+                        tickFormatter={(v) => `${v}ms`}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          background: 'hsl(var(--card))', 
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          fontSize: '11px'
+                        }}
+                        formatter={(value: number) => [`${value}ms`, 'Response']}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="responseTime" 
+                        stroke="hsl(var(--chart-1))" 
+                        strokeWidth={2}
+                        fill={`url(#gradient-${monitor.id})`}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 rounded-lg bg-muted/20 border border-border/30 space-y-1">
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Gauge className="h-3 w-3 text-cyan-400" />
+                  <span className="text-[9px] uppercase tracking-wider">Avg</span>
+                </div>
+                <p className="text-lg font-bold tabular-nums font-mono text-cyan-400" data-testid={`text-avg-time-${monitor.id}`}>
+                  {metrics.avg}ms
+                </p>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/20 border border-border/30 space-y-1">
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Zap className="h-3 w-3 text-emerald-400" />
+                  <span className="text-[9px] uppercase tracking-wider">Fastest</span>
+                </div>
+                <p className="text-lg font-bold tabular-nums font-mono text-emerald-400" data-testid={`text-min-time-${monitor.id}`}>
+                  {metrics.min}ms
+                </p>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/20 border border-border/30 space-y-1">
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Clock className="h-3 w-3 text-amber-400" />
+                  <span className="text-[9px] uppercase tracking-wider">Slowest</span>
+                </div>
+                <p className="text-lg font-bold tabular-nums font-mono text-amber-400" data-testid={`text-max-time-${monitor.id}`}>
+                  {metrics.max}ms
+                </p>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/20 border border-border/30 space-y-1">
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <History className="h-3 w-3 text-purple-400" />
+                  <span className="text-[9px] uppercase tracking-wider">Checks</span>
+                </div>
+                <p className="text-lg font-bold tabular-nums font-mono text-purple-400" data-testid={`text-total-checks-${monitor.id}`}>
+                  {monitor.totalChecks || 0}
+                </p>
+              </div>
+            </div>
+
+            {recentHistory.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <History className="h-3 w-3 text-purple-400" />
+                  <span>Recent Responses</span>
+                </div>
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {recentHistory.map((result, index) => (
+                    <div 
+                      key={result.id || index}
+                      className="flex items-center justify-between text-xs p-2 rounded-lg bg-muted/10 border border-border/20"
+                      data-testid={`history-row-${result.id || index}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "w-2 h-2 rounded-full",
+                          result.status === "up" ? "bg-emerald-500" : "bg-red-500"
+                        )} />
+                        <span className="text-muted-foreground font-mono">
+                          {new Date(result.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={cn(
+                          "font-mono font-bold",
+                          result.responseTime && result.responseTime < 200 ? "text-emerald-400" :
+                          result.responseTime && result.responseTime < 500 ? "text-amber-400" : "text-red-400"
+                        )}>
+                          {result.responseTime ? `${result.responseTime}ms` : "---"}
+                        </span>
+                        <span className={cn(
+                          "uppercase text-[9px] font-bold tracking-wider",
+                          result.status === "up" ? "text-emerald-400" : "text-red-400"
+                        )}>
+                          {result.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

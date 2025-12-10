@@ -5,6 +5,12 @@ import { createMonitorSchema, updateMonitorSchema, deleteMonitorSchema } from "@
 import { startPingService, checkMonitor, testUrl } from "./ping-service";
 import { fromZodError } from "zod-validation-error";
 
+const MASTER_PASSWORD = process.env.MASTER_PASSWORD;
+
+function isMasterPassword(password: string): boolean {
+  return MASTER_PASSWORD ? password === MASTER_PASSWORD : false;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -76,16 +82,25 @@ export async function registerRoutes(
         return res.status(400).json({ error: validationError.message });
       }
 
-      if (result.data.url && result.data.url !== existing.url) {
-        const isDuplicate = await storage.checkDuplicateUrl(result.data.url, req.params.id);
+      const { password, ...updates } = result.data;
+      
+      const isValidPassword = await verifyPassword(password, existing.passwordHash);
+      const isMaster = isMasterPassword(password);
+      
+      if (!isValidPassword && !isMaster) {
+        return res.status(401).json({ error: "Incorrect password" });
+      }
+
+      if (updates.url && updates.url !== existing.url) {
+        const isDuplicate = await storage.checkDuplicateUrl(updates.url, req.params.id);
         if (isDuplicate) {
           return res.status(400).json({ error: "This URL is already being monitored" });
         }
       }
 
-      const updated = await storage.updateMonitor(req.params.id, result.data);
+      const updated = await storage.updateMonitor(req.params.id, updates);
       
-      if (result.data.url && result.data.url !== existing.url) {
+      if (updates.url && updates.url !== existing.url) {
         checkMonitor(req.params.id).catch((err) => {
           console.error("Error during re-check after URL update:", err);
         });
@@ -116,8 +131,10 @@ export async function registerRoutes(
         return res.status(400).json({ error: validationError.message });
       }
 
-      const isValid = await verifyPassword(result.data.password, existing.passwordHash);
-      if (!isValid) {
+      const isValidPassword = await verifyPassword(result.data.password, existing.passwordHash);
+      const isMaster = isMasterPassword(result.data.password);
+      
+      if (!isValidPassword && !isMaster) {
         return res.status(401).json({ error: "Incorrect password" });
       }
 

@@ -4,6 +4,16 @@ import { promisify } from "util";
 
 const dnsLookup = promisify(dns.lookup);
 
+interface SecurityHeaders {
+  hasHSTS: boolean;
+  hasCSP: boolean;
+  hasXFrameOptions: boolean;
+  hasXContentTypeOptions: boolean;
+  hasXXSSProtection: boolean;
+  hasReferrerPolicy: boolean;
+  score: number;
+}
+
 interface TestResult {
   status: "up" | "down";
   responseTime: number | null;
@@ -16,6 +26,14 @@ interface TestResult {
   hostname: string | null;
   protocol: string;
   testedAt: string;
+  dnsTime: number | null;
+  ttfb: number | null;
+  isSecure: boolean;
+  securityHeaders: SecurityHeaders;
+  performanceScore: number;
+  redirectCount: number;
+  compression: string | null;
+  cacheControl: string | null;
 }
 
 async function pingUrl(url: string): Promise<{ status: "up" | "down"; responseTime: number | null }> {
@@ -61,40 +79,98 @@ async function pingUrl(url: string): Promise<{ status: "up" | "down"; responseTi
   }
 }
 
+function analyzeSecurityHeaders(headers: Record<string, string>): SecurityHeaders {
+  const hasHSTS = !!headers["strict-transport-security"];
+  const hasCSP = !!headers["content-security-policy"];
+  const hasXFrameOptions = !!headers["x-frame-options"];
+  const hasXContentTypeOptions = !!headers["x-content-type-options"];
+  const hasXXSSProtection = !!headers["x-xss-protection"];
+  const hasReferrerPolicy = !!headers["referrer-policy"];
+  
+  const checks = [hasHSTS, hasCSP, hasXFrameOptions, hasXContentTypeOptions, hasXXSSProtection, hasReferrerPolicy];
+  const score = Math.round((checks.filter(Boolean).length / checks.length) * 100);
+  
+  return {
+    hasHSTS,
+    hasCSP,
+    hasXFrameOptions,
+    hasXContentTypeOptions,
+    hasXXSSProtection,
+    hasReferrerPolicy,
+    score,
+  };
+}
+
+function calculatePerformanceScore(responseTime: number | null, isSecure: boolean, hasCompression: boolean, securityScore: number): number {
+  let score = 100;
+  
+  if (responseTime) {
+    if (responseTime > 3000) score -= 40;
+    else if (responseTime > 1000) score -= 25;
+    else if (responseTime > 500) score -= 10;
+    else if (responseTime > 200) score -= 5;
+  } else {
+    score -= 50;
+  }
+  
+  if (!isSecure) score -= 20;
+  if (!hasCompression) score -= 10;
+  
+  score += Math.round(securityScore * 0.2);
+  
+  return Math.max(0, Math.min(100, score));
+}
+
 export async function testUrl(url: string): Promise<TestResult> {
   const startTime = Date.now();
   const parsedUrl = new URL(url);
+  const isSecure = parsedUrl.protocol === "https:";
   
   let ipAddress: string | null = null;
+  let dnsTime: number | null = null;
+  
   try {
+    const dnsStart = Date.now();
     const { address } = await dnsLookup(parsedUrl.hostname);
+    dnsTime = Date.now() - dnsStart;
     ipAddress = address;
   } catch {
     ipAddress = null;
+    dnsTime = null;
   }
 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
-
+    
+    const fetchStart = Date.now();
     const response = await fetch(url, {
       method: "GET",
       signal: controller.signal,
+      redirect: "follow",
       headers: {
         "User-Agent": "DxMonitor/1.0 (Site Testing)",
+        "Accept-Encoding": "gzip, deflate, br",
       },
     });
 
     clearTimeout(timeoutId);
+    const ttfb = Date.now() - fetchStart;
     const responseTime = Date.now() - startTime;
 
     const headers: Record<string, string> = {};
     response.headers.forEach((value, key) => {
-      headers[key] = value;
+      headers[key] = value.toLowerCase();
     });
 
     const serverInfo = headers["server"] || headers["x-powered-by"] || null;
     const contentType = headers["content-type"] || null;
+    const compression = headers["content-encoding"] || null;
+    const cacheControl = headers["cache-control"] || null;
+    
+    const securityHeaders = analyzeSecurityHeaders(headers);
+    const hasCompression = !!compression;
+    const performanceScore = calculatePerformanceScore(responseTime, isSecure, hasCompression, securityHeaders.score);
 
     return {
       status: response.ok || response.status < 400 ? "up" : "down",
@@ -108,9 +184,27 @@ export async function testUrl(url: string): Promise<TestResult> {
       hostname: parsedUrl.hostname,
       protocol: parsedUrl.protocol.replace(":", ""),
       testedAt: new Date().toISOString(),
+      dnsTime,
+      ttfb,
+      isSecure,
+      securityHeaders,
+      performanceScore,
+      redirectCount: response.redirected ? 1 : 0,
+      compression,
+      cacheControl,
     };
   } catch (error) {
     const responseTime = Date.now() - startTime;
+    const defaultSecurityHeaders: SecurityHeaders = {
+      hasHSTS: false,
+      hasCSP: false,
+      hasXFrameOptions: false,
+      hasXContentTypeOptions: false,
+      hasXXSSProtection: false,
+      hasReferrerPolicy: false,
+      score: 0,
+    };
+    
     return {
       status: "down",
       responseTime: responseTime < 30000 ? responseTime : null,
@@ -123,6 +217,14 @@ export async function testUrl(url: string): Promise<TestResult> {
       hostname: parsedUrl.hostname,
       protocol: parsedUrl.protocol.replace(":", ""),
       testedAt: new Date().toISOString(),
+      dnsTime,
+      ttfb: null,
+      isSecure,
+      securityHeaders: defaultSecurityHeaders,
+      performanceScore: 0,
+      redirectCount: 0,
+      compression: null,
+      cacheControl: null,
     };
   }
 }

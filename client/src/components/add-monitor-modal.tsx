@@ -21,13 +21,13 @@ import {
   FormMessage,
   FormDescription,
 } from "@/components/ui/form";
-import { createMonitorSchema, updateMonitorSchema, INTERVAL_OPTIONS, type CreateMonitor, type UpdateMonitor, type Monitor } from "@shared/schema";
+import { createMonitorSchema, INTERVAL_OPTIONS, type CreateMonitor, type Monitor } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
 interface AddMonitorModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: CreateMonitor | UpdateMonitor) => void;
+  onSubmit: (data: CreateMonitor) => void;
   isPending: boolean;
   editingMonitor?: Monitor | null;
 }
@@ -44,7 +44,7 @@ export function AddMonitorModal({
   const isEditing = !!editingMonitor;
   
   const form = useForm<CreateMonitor>({
-    resolver: zodResolver(isEditing ? updateMonitorSchema : createMonitorSchema),
+    resolver: zodResolver(createMonitorSchema),
     defaultValues: {
       name: "",
       url: "",
@@ -75,12 +75,7 @@ export function AddMonitorModal({
   }, [open, editingMonitor, form]);
 
   const handleSubmit = (data: CreateMonitor) => {
-    if (isEditing) {
-      const { password, ...updateData } = data;
-      onSubmit(updateData);
-    } else {
-      onSubmit(data);
-    }
+    onSubmit(data);
   };
 
   const handleOpenChange = (newOpen: boolean) => {
@@ -154,49 +149,49 @@ export function AddMonitorModal({
               )}
             />
 
-            {!isEditing && (
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                      <Shield className="h-3.5 w-3.5 text-purple-400" />
-                      Deletion Password
-                    </FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Input
-                          placeholder="Secure password for deletion"
-                          type={showPassword ? "text" : "password"}
-                          className="bg-background/50 border-border/50 focus:border-purple-500/50 focus:ring-purple-500/20 pr-10"
-                          {...field}
-                          data-testid="input-monitor-password"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:text-foreground"
-                          onClick={() => setShowPassword(!showPassword)}
-                          data-testid="button-toggle-password"
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                    </FormControl>
-                    <FormDescription className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                      Required to delete this monitor
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <Shield className="h-3.5 w-3.5 text-purple-400" />
+                    {isEditing ? "Verification Password" : "Deletion Password"}
+                  </FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Input
+                        placeholder={isEditing ? "Enter password to authorize changes" : "Secure password for deletion"}
+                        type={showPassword ? "text" : "password"}
+                        className="bg-background/50 border-border/50 focus:border-purple-500/50 focus:ring-purple-500/20 pr-10"
+                        {...field}
+                        data-testid="input-monitor-password"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowPassword(!showPassword)}
+                        data-testid="button-toggle-password"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </FormControl>
+                  <FormDescription className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                    {isEditing 
+                      ? "Required to save changes (use original or master password)"
+                      : "Required to delete or edit this monitor"}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
