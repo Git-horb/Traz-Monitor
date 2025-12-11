@@ -1,7 +1,4 @@
-import { type Monitor, type InsertMonitor, type PingResult, type InsertPingResult, monitors, pingResults } from "@shared/schema";
-import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
-import { randomUUID } from "crypto";
+import { MonitorModel, PingResultModel } from "./db";
 import bcrypt from "bcryptjs";
 
 export async function hashPassword(password: string): Promise<string> {
@@ -10,6 +7,41 @@ export async function hashPassword(password: string): Promise<string> {
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
+}
+
+export interface Monitor {
+  id: string;
+  name: string;
+  url: string;
+  interval: number;
+  status: string;
+  lastChecked: string | null;
+  responseTime: number | null;
+  uptimePercentage: number;
+  totalChecks: number;
+  successfulChecks: number;
+  passwordHash: string;
+}
+
+export interface PingResult {
+  id: string;
+  monitorId: string;
+  status: string;
+  responseTime: number | null;
+  timestamp: string;
+}
+
+export interface InsertMonitor {
+  name: string;
+  url: string;
+  interval: number;
+}
+
+export interface InsertPingResult {
+  monitorId: string;
+  status: string;
+  responseTime?: number | null;
+  timestamp: string;
 }
 
 export interface IStorage {
@@ -28,22 +60,50 @@ export interface IStorage {
   checkDuplicateUrl(url: string, excludeId?: string): Promise<boolean>;
 }
 
-export class DatabaseStorage implements IStorage {
+export class MongoStorage implements IStorage {
   async getAllMonitors(): Promise<Monitor[]> {
-    return await db.select().from(monitors);
+    const docs = await MonitorModel.find().lean();
+    return docs.map(doc => ({
+      id: doc._id.toString(),
+      name: doc.name,
+      url: doc.url,
+      interval: doc.interval,
+      status: doc.status,
+      lastChecked: doc.lastChecked || null,
+      responseTime: doc.responseTime ?? null,
+      uptimePercentage: doc.uptimePercentage ?? 100,
+      totalChecks: doc.totalChecks ?? 0,
+      successfulChecks: doc.successfulChecks ?? 0,
+      passwordHash: doc.passwordHash,
+    }));
   }
 
   async getMonitor(id: string): Promise<Monitor | undefined> {
-    const [monitor] = await db.select().from(monitors).where(eq(monitors.id, id));
-    return monitor || undefined;
+    try {
+      const doc = await MonitorModel.findById(id).lean();
+      if (!doc) return undefined;
+      return {
+        id: doc._id.toString(),
+        name: doc.name,
+        url: doc.url,
+        interval: doc.interval,
+        status: doc.status,
+        lastChecked: doc.lastChecked || null,
+        responseTime: doc.responseTime ?? null,
+        uptimePercentage: doc.uptimePercentage ?? 100,
+        totalChecks: doc.totalChecks ?? 0,
+        successfulChecks: doc.successfulChecks ?? 0,
+        passwordHash: doc.passwordHash,
+      };
+    } catch {
+      return undefined;
+    }
   }
 
   async createMonitor(insertMonitor: InsertMonitor & { password: string }): Promise<Monitor> {
-    const id = randomUUID();
     const passwordHash = await hashPassword(insertMonitor.password);
     
-    const [monitor] = await db.insert(monitors).values({
-      id,
+    const doc = await MonitorModel.create({
       name: insertMonitor.name,
       url: insertMonitor.url,
       interval: insertMonitor.interval,
@@ -54,32 +114,59 @@ export class DatabaseStorage implements IStorage {
       totalChecks: 0,
       successfulChecks: 0,
       passwordHash,
-    }).returning();
+    });
     
-    return monitor;
+    return {
+      id: doc._id.toString(),
+      name: doc.name,
+      url: doc.url,
+      interval: doc.interval,
+      status: doc.status,
+      lastChecked: doc.lastChecked || null,
+      responseTime: doc.responseTime ?? null,
+      uptimePercentage: doc.uptimePercentage ?? 100,
+      totalChecks: doc.totalChecks ?? 0,
+      successfulChecks: doc.successfulChecks ?? 0,
+      passwordHash: doc.passwordHash,
+    };
   }
 
   async updateMonitor(id: string, updates: Partial<Omit<InsertMonitor, 'password'>>): Promise<Monitor | undefined> {
-    const existing = await this.getMonitor(id);
-    if (!existing) return undefined;
+    try {
+      const updateData: Record<string, unknown> = {};
+      if (updates.name !== undefined) updateData.name = updates.name;
+      if (updates.url !== undefined) updateData.url = updates.url;
+      if (updates.interval !== undefined) updateData.interval = updates.interval;
 
-    const updateData: Partial<Monitor> = {};
-    if (updates.name !== undefined) updateData.name = updates.name;
-    if (updates.url !== undefined) updateData.url = updates.url;
-    if (updates.interval !== undefined) updateData.interval = updates.interval;
-
-    const [updated] = await db.update(monitors)
-      .set(updateData)
-      .where(eq(monitors.id, id))
-      .returning();
-    
-    return updated;
+      const doc = await MonitorModel.findByIdAndUpdate(id, updateData, { new: true }).lean();
+      if (!doc) return undefined;
+      
+      return {
+        id: doc._id.toString(),
+        name: doc.name,
+        url: doc.url,
+        interval: doc.interval,
+        status: doc.status,
+        lastChecked: doc.lastChecked || null,
+        responseTime: doc.responseTime ?? null,
+        uptimePercentage: doc.uptimePercentage ?? 100,
+        totalChecks: doc.totalChecks ?? 0,
+        successfulChecks: doc.successfulChecks ?? 0,
+        passwordHash: doc.passwordHash,
+      };
+    } catch {
+      return undefined;
+    }
   }
 
   async deleteMonitor(id: string): Promise<boolean> {
-    await this.deletePingResultsByMonitorId(id);
-    const result = await db.delete(monitors).where(eq(monitors.id, id)).returning();
-    return result.length > 0;
+    try {
+      await this.deletePingResultsByMonitorId(id);
+      const result = await MonitorModel.findByIdAndDelete(id);
+      return !!result;
+    } catch {
+      return false;
+    }
   }
 
   async updateMonitorStatus(
@@ -97,36 +184,50 @@ export class DatabaseStorage implements IStorage {
       : (monitor.successfulChecks || 0);
     const uptimePercentage = Math.round((successfulChecks / totalChecks) * 100);
 
-    await db.update(monitors).set({
+    await MonitorModel.findByIdAndUpdate(id, {
       status,
       responseTime,
       lastChecked,
       totalChecks,
       successfulChecks,
       uptimePercentage,
-    }).where(eq(monitors.id, id));
+    });
   }
 
   async getPingResultsByMonitorId(monitorId: string): Promise<PingResult[]> {
-    const results = await db.select()
-      .from(pingResults)
-      .where(eq(pingResults.monitorId, monitorId))
-      .orderBy(desc(pingResults.timestamp))
-      .limit(24);
-    return results.reverse();
+    const docs = await PingResultModel.find({ monitorId })
+      .sort({ timestamp: -1 })
+      .limit(24)
+      .lean();
+    
+    return docs.reverse().map(doc => ({
+      id: doc._id.toString(),
+      monitorId: doc.monitorId,
+      status: doc.status,
+      responseTime: doc.responseTime ?? null,
+      timestamp: doc.timestamp,
+    }));
   }
 
   async getAllPingResults(): Promise<Record<string, PingResult[]>> {
-    const allResults = await db.select().from(pingResults).orderBy(desc(pingResults.timestamp));
+    const allDocs = await PingResultModel.find()
+      .sort({ timestamp: -1 })
+      .lean();
     
     const resultsByMonitor: Record<string, PingResult[]> = {};
     
-    for (const result of allResults) {
-      if (!resultsByMonitor[result.monitorId]) {
-        resultsByMonitor[result.monitorId] = [];
+    for (const doc of allDocs) {
+      if (!resultsByMonitor[doc.monitorId]) {
+        resultsByMonitor[doc.monitorId] = [];
       }
-      if (resultsByMonitor[result.monitorId].length < 24) {
-        resultsByMonitor[result.monitorId].push(result);
+      if (resultsByMonitor[doc.monitorId].length < 24) {
+        resultsByMonitor[doc.monitorId].push({
+          id: doc._id.toString(),
+          monitorId: doc.monitorId,
+          status: doc.status,
+          responseTime: doc.responseTime ?? null,
+          timestamp: doc.timestamp,
+        });
       }
     }
     
@@ -138,30 +239,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createPingResult(insertResult: InsertPingResult): Promise<PingResult> {
-    const id = randomUUID();
-    
-    const [result] = await db.insert(pingResults).values({
-      id,
+    const doc = await PingResultModel.create({
       monitorId: insertResult.monitorId,
       status: insertResult.status,
       responseTime: insertResult.responseTime ?? null,
       timestamp: insertResult.timestamp,
-    }).returning();
+    });
 
-    return result;
+    return {
+      id: doc._id.toString(),
+      monitorId: doc.monitorId,
+      status: doc.status,
+      responseTime: doc.responseTime ?? null,
+      timestamp: doc.timestamp,
+    };
   }
 
   async deletePingResultsByMonitorId(monitorId: string): Promise<void> {
-    await db.delete(pingResults).where(eq(pingResults.monitorId, monitorId));
+    await PingResultModel.deleteMany({ monitorId });
   }
 
   async checkDuplicateUrl(url: string, excludeId?: string): Promise<boolean> {
-    const existing = await db.select().from(monitors).where(eq(monitors.url, url));
+    const query: Record<string, unknown> = { url };
     if (excludeId) {
-      return existing.some(m => m.id !== excludeId);
+      query._id = { $ne: excludeId };
     }
-    return existing.length > 0;
+    const existing = await MonitorModel.findOne(query);
+    return !!existing;
   }
 }
 
-export const storage = new DatabaseStorage();
+export const storage = new MongoStorage();

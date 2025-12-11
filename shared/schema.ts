@@ -1,34 +1,28 @@
-import { pgTable, text, varchar, integer, boolean, timestamp } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const monitors = pgTable("monitors", {
-  id: varchar("id").primaryKey(),
-  name: text("name").notNull(),
-  url: text("url").notNull(),
-  interval: integer("interval").notNull().default(5),
-  status: text("status").notNull().default("checking"),
-  lastChecked: text("last_checked"),
-  responseTime: integer("response_time"),
-  uptimePercentage: integer("uptime_percentage").default(100),
-  totalChecks: integer("total_checks").default(0),
-  successfulChecks: integer("successful_checks").default(0),
-  passwordHash: text("password_hash").notNull(),
-});
+export interface Monitor {
+  id: string;
+  name: string;
+  url: string;
+  interval: number;
+  status: string;
+  lastChecked: string | null;
+  responseTime: number | null;
+  uptimePercentage: number;
+  totalChecks: number;
+  successfulChecks: number;
+  passwordHash: string;
+}
 
-export const pingResults = pgTable("ping_results", {
-  id: varchar("id").primaryKey(),
-  monitorId: varchar("monitor_id").notNull(),
-  status: text("status").notNull(),
-  responseTime: integer("response_time"),
-  timestamp: text("timestamp").notNull(),
-});
+export interface PingResult {
+  id: string;
+  monitorId: string;
+  status: string;
+  responseTime: number | null;
+  timestamp: string;
+}
 
-export const insertMonitorSchema = createInsertSchema(monitors).pick({
-  name: true,
-  url: true,
-  interval: true,
-}).extend({
+export const insertMonitorSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   url: z.string().url("Please enter a valid URL"),
   interval: z.number().min(1).max(60),
@@ -51,19 +45,17 @@ export const updateMonitorWithPasswordSchema = z.object({
   updates: insertMonitorSchema.partial(),
 });
 
-export const insertPingResultSchema = createInsertSchema(pingResults).pick({
-  monitorId: true,
-  status: true,
-  responseTime: true,
-  timestamp: true,
+export const insertPingResultSchema = z.object({
+  monitorId: z.string(),
+  status: z.string(),
+  responseTime: z.number().nullable().optional(),
+  timestamp: z.string(),
 });
 
 export type InsertMonitor = z.infer<typeof insertMonitorSchema>;
 export type CreateMonitor = z.infer<typeof createMonitorSchema>;
 export type UpdateMonitor = z.infer<typeof updateMonitorSchema>;
-export type Monitor = typeof monitors.$inferSelect;
 export type InsertPingResult = z.infer<typeof insertPingResultSchema>;
-export type PingResult = typeof pingResults.$inferSelect;
 
 export const INTERVAL_OPTIONS = [
   { value: 1, label: "Every 1 min" },

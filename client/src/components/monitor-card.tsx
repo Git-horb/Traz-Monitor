@@ -109,18 +109,18 @@ export function MonitorCard({ monitor, pingResults, onEdit, onDelete }: MonitorC
         "border-border/50",
         getStatusBorder(),
         getCardGlow(),
-        "hover:translate-y-[-4px]"
+        "md:hover:translate-y-[-4px]"
       )}
       data-testid={`card-monitor-${monitor.id}`}
     >
-      <CardHeader className="pb-3 relative">
+      <CardHeader className="pb-2 md:pb-3 p-3 md:p-4 relative">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 md:gap-2 min-w-0 flex-1">
                 {getStatusIcon()}
                 <h3 
-                  className="text-lg font-bold tracking-tight truncate"
+                  className="text-base md:text-lg font-bold tracking-tight truncate"
                   data-testid={`text-monitor-name-${monitor.id}`}
                 >
                   {monitor.name}
@@ -132,61 +132,61 @@ export function MonitorCard({ monitor, pingResults, onEdit, onDelete }: MonitorC
               href={monitor.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-sm text-cyan-500/70 hover:text-cyan-400 transition-colors mt-1 truncate font-mono"
+              className="flex items-center gap-1 text-xs md:text-sm text-cyan-500/70 hover:text-cyan-400 transition-colors mt-1 truncate font-mono max-w-full"
               data-testid={`link-monitor-url-${monitor.id}`}
             >
               <span className="truncate">{monitor.url}</span>
               <ExternalLink className="h-3 w-3 flex-shrink-0" />
             </a>
           </div>
-          <div className="flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-0.5 md:gap-1 opacity-70 md:opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => onEdit(monitor)}
-              className="text-cyan-400/70 hover:text-cyan-400"
+              className="text-cyan-400/70 hover:text-cyan-400 h-8 w-8 md:h-9 md:w-9"
               data-testid={`button-edit-monitor-${monitor.id}`}
             >
-              <Settings className="h-4 w-4" />
+              <Settings className="h-3.5 w-3.5 md:h-4 md:w-4" />
               <span className="sr-only">Edit monitor</span>
             </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => onDelete(monitor.id)}
-              className="text-muted-foreground hover:text-red-400"
+              className="text-muted-foreground hover:text-red-400 h-8 w-8 md:h-9 md:w-9"
               data-testid={`button-delete-monitor-${monitor.id}`}
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-3.5 w-3.5 md:h-4 md:w-4" />
               <span className="sr-only">Delete monitor</span>
             </Button>
           </div>
         </div>
       </CardHeader>
       
-      <CardContent className="space-y-4 relative">
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-1">
+      <CardContent className="space-y-3 md:space-y-4 relative p-3 md:p-4 pt-0 md:pt-0">
+        <div className="grid grid-cols-3 gap-2 md:gap-4">
+          <div className="space-y-0.5 md:space-y-1">
             <div className="flex items-center gap-1 text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" />
-              <span className="text-[10px] uppercase tracking-widest">Response</span>
+              <Clock className="h-3 md:h-3.5 w-3 md:w-3.5" />
+              <span className="text-[8px] md:text-[10px] uppercase tracking-widest">Response</span>
             </div>
             <p 
-              className={cn("text-xl font-bold tabular-nums font-mono", getResponseTimeColor(monitor.responseTime))}
+              className={cn("text-lg md:text-xl font-bold tabular-nums font-mono", getResponseTimeColor(monitor.responseTime))}
               data-testid={`text-response-time-${monitor.id}`}
             >
               {monitor.responseTime ? `${monitor.responseTime}ms` : "---"}
             </p>
           </div>
           
-          <div className="space-y-1">
+          <div className="space-y-0.5 md:space-y-1">
             <div className="flex items-center gap-1 text-muted-foreground">
-              <TrendingUp className="h-3.5 w-3.5" />
-              <span className="text-[10px] uppercase tracking-widest">Uptime</span>
+              <TrendingUp className="h-3 md:h-3.5 w-3 md:w-3.5" />
+              <span className="text-[8px] md:text-[10px] uppercase tracking-widest">Uptime</span>
             </div>
             <p 
               className={cn(
-                "text-xl font-bold tabular-nums font-mono",
+                "text-lg md:text-xl font-bold tabular-nums font-mono",
                 (monitor.uptimePercentage ?? 100) >= 99 ? "text-emerald-400" :
                 (monitor.uptimePercentage ?? 100) >= 95 ? "text-amber-400" : "text-red-400"
               )}
@@ -196,10 +196,10 @@ export function MonitorCard({ monitor, pingResults, onEdit, onDelete }: MonitorC
             </p>
           </div>
           
-          <div className="space-y-1">
-            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Last Check</span>
+          <div className="space-y-0.5 md:space-y-1">
+            <span className="text-[8px] md:text-[10px] uppercase tracking-widest text-muted-foreground">Last Check</span>
             <p 
-              className="text-sm font-medium text-cyan-400/80 font-mono"
+              className="text-xs md:text-sm font-medium text-cyan-400/80 font-mono"
               data-testid={`text-last-checked-${monitor.id}`}
             >
               {formatLastChecked()}
@@ -207,12 +207,12 @@ export function MonitorCard({ monitor, pingResults, onEdit, onDelete }: MonitorC
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-[10px] uppercase tracking-widest text-muted-foreground">
+        <div className="space-y-1.5 md:space-y-2">
+          <div className="flex items-center justify-between text-[8px] md:text-[10px] uppercase tracking-widest text-muted-foreground gap-2">
             <span>Uptime (24h)</span>
             <span className="font-bold text-foreground">{monitor.uptimePercentage ?? 100}%</span>
           </div>
-          <div className="relative h-2 rounded-full bg-muted/30 overflow-hidden">
+          <div className="relative h-1.5 md:h-2 rounded-full bg-muted/30 overflow-hidden">
             <div 
               className={cn(
                 "absolute inset-y-0 left-0 rounded-full transition-all duration-500",
@@ -226,10 +226,10 @@ export function MonitorCard({ monitor, pingResults, onEdit, onDelete }: MonitorC
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-[10px] uppercase tracking-widest text-muted-foreground">
+        <div className="space-y-1.5 md:space-y-2">
+          <div className="flex items-center justify-between text-[8px] md:text-[10px] uppercase tracking-widest text-muted-foreground gap-2">
             <span>Status History (24h)</span>
-            <span className="text-purple-400">{intervalLabel}</span>
+            <span className="text-purple-400 truncate">{intervalLabel}</span>
           </div>
           <StatusHistory pingResults={pingResults} />
         </div>

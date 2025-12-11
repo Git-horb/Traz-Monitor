@@ -13,13 +13,13 @@ export function StatusHistory({ pingResults, className }: StatusHistoryProps) {
   const filledResults = [...Array(24 - last24Results.length).fill(null), ...last24Results];
 
   return (
-    <div className={cn("flex items-center gap-1", className)}>
+    <div className={cn("flex items-center gap-0.5 md:gap-1 w-full", className)}>
       {filledResults.map((result, index) => {
         const getBarStyles = () => {
           if (!result) return "bg-muted/50";
-          if (result.status === "up") return "bg-emerald-500 shadow-[0_0_8px_hsl(142_76%_50%/0.4)]";
-          if (result.status === "down") return "bg-red-500 shadow-[0_0_8px_hsl(350_90%_55%/0.5)]";
-          return "bg-purple-500 shadow-[0_0_8px_hsl(275_80%_60%/0.4)]";
+          if (result.status === "up") return "bg-emerald-500 shadow-[0_0_6px_hsl(142_76%_50%/0.4)]";
+          if (result.status === "down") return "bg-red-500 shadow-[0_0_6px_hsl(350_90%_55%/0.5)]";
+          return "bg-purple-500 shadow-[0_0_6px_hsl(275_80%_60%/0.4)]";
         };
 
         const formatTime = (timestamp: string) => {
@@ -33,7 +33,7 @@ export function StatusHistory({ pingResults, className }: StatusHistoryProps) {
           return (
             <div
               key={`empty-${index}`}
-              className={cn("w-2 h-8 rounded-sm transition-all", getBarStyles())}
+              className={cn("flex-1 min-w-0 h-6 md:h-8 rounded-sm transition-all", getBarStyles())}
               data-testid={`history-bar-empty-${index}`}
             />
           );
@@ -44,7 +44,7 @@ export function StatusHistory({ pingResults, className }: StatusHistoryProps) {
             <TooltipTrigger asChild>
               <div
                 className={cn(
-                  "w-2 h-8 rounded-sm cursor-pointer transition-all duration-200 hover:scale-125 hover:z-10",
+                  "flex-1 min-w-0 h-6 md:h-8 rounded-sm cursor-pointer transition-all duration-200 hover:scale-y-110 hover:z-10",
                   getBarStyles()
                 )}
                 data-testid={`history-bar-${index}`}
